@@ -18,6 +18,9 @@ import string
 import tensorflow as tf
 import sklearn
 import numpy as np
+import pandas as pd
+import csv
+import string
 
 
 from tensorflow.keras import layers
@@ -25,11 +28,18 @@ from tensorflow.keras import losses
 from tensorflow.keras import preprocessing
 from tensorflow.keras.layers.experimental.preprocessing import TextVectorization
 from sklearn import model_selection
+from sklearn import preprocessing
 from tensorflow.python.keras.preprocessing import dataset_utils
+import tensorflow_datasets as tfds
+from sklearn.model_selection import train_test_split
 
 Path("/content/TaskA").mkdir(parents=True, exist_ok=True)
 Path("/content/TaskB").mkdir(parents=True, exist_ok=True)
 Path("/content/Data").mkdir(parents=True, exist_ok=True)
+
+
+
+
 
 #Upload the data into Data folder!!!!!
 dataset=open("/content/Data/olid-training-v1.0.tsv").readlines()
@@ -60,7 +70,7 @@ make_directories_to_fit("/content/TaskB","tin","unt")
 #open("/content/traindata/Test/off/off.txt",'x')
 #notText=open("/content/traindata/Test/not/not.txt",'w')
 #offText=open("/content/traindata/Test/off/off.txt",'w')
-filter='!"$%&()*+,-./:;<=>?[\]^_`{|}~\t\n'
+filter='!"$%&()*+,-./:;<=>?[\]^_`{|}~\t\n' 
 
 
 def create_train_texts(train_path,first_label,second_label,label_index,symbol_filter,dataset):  
@@ -159,10 +169,18 @@ def generate_datasets(path_to_root_folder,batch_size,seed):
 raw_train_ds,raw_val_ds,raw_test_ds=generate_datasets("/content/TaskA",batch_size,seed)
 raw_train_dsB,raw_val_dsB,raw_test_dsB=generate_datasets("/content/TaskB",batch_size,seed)
 
+
+
+for feat, targ in raw_train_ds.take(5):
+  print ('Features: {}, Target: {}'.format(feat, targ))
+  
 for text_batch, label_batch in raw_train_ds.take(1):
   for i in range(3):
     print("Review", text_batch.numpy()[i])
     print("Label", label_batch.numpy()[i])
+
+
+
 print("Label 0 corresponds to", raw_train_ds.class_names[0])
 print("Label 1 corresponds to", raw_train_ds.class_names[1])
 
@@ -200,26 +218,31 @@ def vectorize_text(text, label):
 # retrieve a batch (of 32 reviews and labels) from the dataset
 
 text_batch, label_batch = next(iter(raw_train_ds))
+first_review=text_batch[0]
 first_review, first_label = text_batch[0], label_batch[0]
 
 print("Review", first_review)
+
 print("Label", raw_train_ds.class_names[first_label])
 print("Vectorized review", vectorize_text(first_review, first_label))
 
+"""
 text_batchB, label_batchB = next(iter(raw_train_dsB))
 first_reviewB, first_labelB = text_batchB[0], label_batchB[0]
 
 print("Review", first_reviewB)
 print("Label", raw_train_dsB.class_names[first_labelB])
 print("Vectorized review", vectorize_text(first_reviewB, first_labelB))
+"""
 
 print("7517 ---> ",vectorize_layer.get_vocabulary()[500])
 print(" 1953 ---> ",vectorize_layer.get_vocabulary()[1953])
 print('Vocabulary size: {}'.format(len(vectorize_layer.get_vocabulary())))
-
+"""
 print("7517 ---> ",vectorize_layerB.get_vocabulary()[500])
 print(" 1953 ---> ",vectorize_layerB.get_vocabulary()[1953])
 print('Vocabulary size: {}'.format(len(vectorize_layerB.get_vocabulary())))
+"""
 
 def map_and_optimize(raw_train,raw_val,raw_test,vectorize_text):
   train_ds = raw_train.map(vectorize_text)
@@ -254,7 +277,7 @@ model.summary()
 # for some reason, in the tutorial the threshold is 0.0, which, in my opinion, is too unfair
 model.compile(loss=losses.BinaryCrossentropy(from_logits=True,label_smoothing=0.15),
               optimizer='adam',
-              metrics=tf.metrics.BinaryAccuracy(threshold=0.75))
+              metrics=tf.metrics.BinaryAccuracy(threshold=0.5))
 #(from_logits=False)
 
 epochs = 30
@@ -437,9 +460,408 @@ loss, accuracy = export_model.evaluate(raw_test_dsB)
 print(accuracy)
 export_modelB.predict(examples)
 
+file = open('/content/olid-training-v1.0.tsv', 'r')
+Lines = file.readlines()
+ 
+
+all_lines=[]
+
+for line in Lines:
+    splitted=line.split()
+    splitted_list=[]
+    tweet=''
+    length=len(splitted)
+    splitted_list.append(splitted[0])
+    for i in range(1,length-3):
+      tweet+=splitted[i] + " "
+    tweet=tweet.lower().strip('!"$%&()*+,-./:;<=>?[\]^_`{|}~\t\n' )
+    splitted_list.append(tweet)
+    splitted_list.append(splitted[length-3])
+    splitted_list.append(splitted[length-2])
+    all_lines.append(splitted_list)
+print(all_lines[:5])
+all_lines=all_lines[1:]
+df = pd.DataFrame(all_lines, columns =['id', 'tweet', 'subtask_a','subtask_b'])
 
 
 
+testing_values_a = open('/content/testset-levela.tsv', 'r')
+Lines_values = testing_values_a.readlines()
+testing_labels_a = open('/content/labels-levela.csv', 'r')
+Lines_labels = testing_labels_a.readlines()
+Lines_values=Lines_values[1:]
+
+all_lines=[]
+count=0
+for line in zip(Lines_values,Lines_labels):
+    splitted=line[0].split()
+    splitted_labels=line[1].split(',')
+    splitted_list=[]
+    tweet=''
+    length=len(splitted)
+    splitted_list.append(splitted[0])
+    for i in range(1,length):
+      tweet+=splitted[i] + " "
+    tweet=tweet.lower().strip('!"$%&()*+,-./:;<=>?[\]^_`{|}~\t\n' )
+    splitted_list.append(tweet)
+    splitted_list.append(splitted_labels[1])
+    count+=1
+    all_lines.append(splitted_list)
+
+print(all_lines[:5])
+
+df_testing = pd.DataFrame(all_lines, columns =['id', 'tweet', 'subtask_a'])
+target_a_testing_labels=df_testing.pop('subtask_a')
+target_a_testing=df_testing.drop(columns=['id'])
+
+target_a=df.pop('subtask_a')
+target_b=df.pop('subtask_b')
+
+X_train_a, X_val_a, y_train_a, y_val_a = train_test_split(df.values, target_a.values, test_size=0.20, random_state=33)
+training_x=pd.DataFrame(X_train_a,columns =['id', 'tweet'] )
+training_Y=pd.DataFrame(y_train_a,columns =['subtask_a'] )
+
+validation_x=pd.DataFrame(X_train_a,columns =['id', 'tweet'] ).drop(columns=['id'])
+validation_y=pd.DataFrame(y_train_a,columns =['subtask_a'] )
+
+lb = preprocessing.LabelBinarizer()
+training_Y = lb.fit_transform(training_Y)
+validation_y = lb.fit_transform(training_Y)
+
+target_a_testing_labels=lb.fit_transform(target_a_testing_labels)
+
+training_x = training_x.drop(columns=['id'])
+training_Y=pd.DataFrame(training_Y,columns =['subtask_a'] )
+training_a=pd.concat([training_x ,training_Y],axis=1)
+
+dataset_a = tf.data.Dataset.from_tensor_slices((training_x,training_Y))
+dataset_a_valid= tf.data.Dataset.from_tensor_slices((validation_x,validation_y))
+dataset_a_testing=tf.data.Dataset.from_tensor_slices((target_a_testing.values,target_a_testing_labels))
+dataset_a=dataset_a.batch(32)
+dataset_a_valid=dataset_a_valid.batch(32)
+dataset_a_testing.batch(32)
+print(dataset_a)
+print(dataset_a_valid)
+print(dataset_a_testing)
+
+max_features = 10000
+#sequence of such length because the length of Twitter post is 280 symbols long
+sequence_length = 280
+vectorize_layer = TextVectorization(
+ max_tokens=max_features,
+ output_mode='int',
+ output_sequence_length=int(sequence_length))
+# Make a text-only dataset (without labels), then call adapt
+train_text = dataset_a.map(lambda x, y: x)
+#train_textB=raw_test_dsB.map(lambda x,y:x)
+vectorize_layer.adapt(train_text)
+#vectorize_layerB.adapt(train_textB)
 
 
+
+def vectorize_text(text, label):
+  #text = tf.expand_dims(text, -1)
+  return vectorize_layer(text), label
+# retrieve a batch (of 32 reviews and labels) from the dataset
+
+text_batch, label_batch = next(iter(dataset_a))
+first_review=text_batch[0]
+first_review, first_label = text_batch[0], label_batch[0]
+
+print("Review", first_review)
+
+#print("Label", dataset_a.class_names[first_label])
+print("Vectorized review", vectorize_text(first_review, first_label))
+
+print("7517 ---> ",vectorize_layer.get_vocabulary()[500])
+print(" 1953 ---> ",vectorize_layer.get_vocabulary()[1953])
+print('Vocabulary size: {}'.format(len(vectorize_layer.get_vocabulary())))
+
+def map_and_optimize(raw_train,raw_val,raw_test,vectorize_text):
+  train_ds = raw_train.map(vectorize_text)
+  val_ds = raw_val.map(vectorize_text)
+  test_ds = raw_test.map(vectorize_text)
+
+  #optimization
+  AUTOTUNE = tf.data.AUTOTUNE
+
+  train_ds = train_ds.cache().prefetch(buffer_size=AUTOTUNE)
+  val_ds = val_ds.cache().prefetch(buffer_size=AUTOTUNE)
+  test_ds = test_ds.cache().prefetch(buffer_size=AUTOTUNE)
+  return train_ds,val_ds,test_ds
+
+dataset_a_finished,dataset_a_valid_finished,dataset_a_testing_finished=map_and_optimize(dataset_a,dataset_a_valid,dataset_a_testing,vectorize_text)
+
+embedding_dim = 48
+model = tf.keras.Sequential([
+  layers.Embedding(max_features + 1, embedding_dim),
+  layers.Dropout(0.2),
+  layers.GlobalAveragePooling1D(),
+  layers.Dropout(0.2),
+  layers.Dense(1)
+  ])
+
+model.summary()
+
+# for some reason, in the tutorial the threshold is 0.0, which, in my opinion, is too unfair
+model.compile(loss=losses.BinaryCrossentropy(from_logits=True,label_smoothing=0.15),
+              optimizer='adam',
+              metrics=tf.metrics.BinaryAccuracy(threshold=0.3))
+
+epochs = 30
+history = model.fit(
+    dataset_a_finished,
+    validation_data=dataset_a_valid_finished,
+    epochs=epochs)
+
+loss, accuracy = model.evaluate(dataset_a_testing_finished)
+
+print("Loss: ", loss)
+print("Accuracy: ", accuracy)
+
+history_dict = history.history
+history_dict.keys()
+acc = history_dict['binary_accuracy']
+val_acc = history_dict['val_binary_accuracy']
+loss = history_dict['loss']
+val_loss = history_dict['val_loss']
+
+epochs = range(1, len(acc) + 1)
+
+# "bo" is for "blue dot"
+plt.plot(epochs, loss, 'bo', label='Training loss')
+# b is for "solid blue line"
+plt.plot(epochs, val_loss, 'b', label='Validation loss')
+plt.title('Training and validation loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+
+plt.show()
+
+plt.plot(epochs, acc, 'bo', label='Training acc')
+plt.plot(epochs, val_acc, 'b', label='Validation acc')
+plt.title('Training and validation accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.legend(loc='lower right')
+
+plt.show()
+
+export_model = tf.keras.Sequential([
+  vectorize_layer,
+  model,
+  layers.Activation('sigmoid')
+])
+
+export_model.compile(
+    loss=losses.BinaryCrossentropy(from_logits=False), optimizer="adam", metrics=['accuracy']
+)
+
+examples = [
+  "MAGA TRUMP MAGA TRUMP WON",
+  "JOE BIDEN JOE BIDEN VOTE BLUE NO MATTER WHO",
+  "NIGGER NIGGER NIGGER NIGGER NIGGER NIGGER NIGGER NIGGER NIGGER NIGGER",
+  "Nigger is an offensive and derogatory word that is used to insulf all people of color (not only afro-americans) ",
+  "Love is good, I love everyone and wish you all the best things in life",
+  "Believe in Jesus and he will believe in you",
+  "Democracy is one of the most important aspect of every US cityzen's life",
+  "TRUMP",
+  "BIDEN",
+  "#MAGA",
+  "NIGGER JEW HOLOCAUST HITLER TRUMP PUTIN 9/11 ELECTION FRAUD  ALLAH",
+  "NIGGER JEW HOLOCAUST HITLER TRUMP PUTIN 9/11 ELECTION FRAUD JESUS ALLAH Jesus Jesus",
+]
+loss, accuracy = export_model.evaluate(dataset_a_testing)
+print(accuracy)
+export_model.predict(examples)
+
+file = open('/content/olid-training-v1.0.tsv', 'r')
+Lines = file.readlines()
+ 
+
+all_lines=[]
+
+for line in Lines:
+    splitted=line.split()
+    splitted_list=[]
+    tweet=''
+    length=len(splitted)
+    splitted_list.append(splitted[0])
+    for i in range(1,length-3):
+      tweet+=splitted[i] + " "
+    tweet=tweet.lower().strip('!"$%&()*+,-./:;<=>?[\]^_`{|}~\t\n' )
+    splitted_list.append(tweet)
+    splitted_list.append(splitted[length-3])
+    second_atribute=splitted[length-2]
+    splitted_list.append(second_atribute)
+    if second_atribute =="UNT" or second_atribute =="TIN":
+      all_lines.append(splitted_list)
+print(all_lines[:5])
+all_lines=all_lines[1:]
+df = pd.DataFrame(all_lines, columns =['id', 'tweet', 'subtask_a','subtask_b'])
+labels_b = df.pop('subtask_b')
+df=df.drop(columns=['id','subtask_a'])
+df.head()
+labels_b
+
+testing_values_b = open('/content/testset-levelb.tsv', 'r')
+Lines_values = testing_values_b.readlines()
+testing_labels_b = open('/content/labels-levelb.csv', 'r')
+Lines_labels = testing_labels_b.readlines()
+Lines_values=Lines_values[1:]
+
+
+all_lines=[]
+
+for line in zip(Lines_values,Lines_labels):
+    splitted=line[0].split()
+    splitted_labels=line[1].split(',')
+    splitted_list=[]
+    tweet=''
+    length=len(splitted)
+    splitted_list.append(splitted[0])
+    for i in range(1,length):
+      tweet+=splitted[i] + " "
+    tweet=tweet.lower().strip('!"$%&()*+,-./:;<=>?[\]^_`{|}~\t\n' )
+    splitted_list.append(tweet)
+    label=splitted_labels[1]
+    #print(label)
+    
+    if label =="UNT\n" or label =="TIN\n":
+      splitted_list.append(label)
+      all_lines.append(splitted_list)
+    else:
+      print(label)
+    
+print(all_lines[:5])
+df_testing_b = pd.DataFrame(all_lines, columns =['id', 'tweet','subtask_b'])
+labels_b_test = df_testing_b.pop('subtask_b')
+df_testing_b=df_testing_b.drop(columns=['id'])
+df_testing_b.head()
+
+X_train_b, X_val_b, y_train_b, y_val_b = train_test_split(df.values, labels_b.values, test_size=0.20, random_state=33)
+training_x=pd.DataFrame(X_train_b,columns =['tweet'] )
+training_Y=pd.DataFrame(y_train_b,columns =['subtask_b'] )
+
+validation_x=pd.DataFrame(X_train_b,columns =[ 'tweet'] )
+validation_y=pd.DataFrame(y_train_b,columns =['subtask_b'] )
+
+lb = preprocessing.LabelBinarizer()
+training_Y = lb.fit_transform(training_Y)
+validation_y = lb.fit_transform(training_Y)
+
+labels_b_test=lb.fit_transform(labels_b_test)
+
+
+training_Y=pd.DataFrame(training_Y,columns =['subtask_b'] )
+training_b=pd.concat([training_x ,training_Y],axis=1)
+
+dataset_b = tf.data.Dataset.from_tensor_slices((training_x,training_Y))
+dataset_b_valid= tf.data.Dataset.from_tensor_slices((validation_x,validation_y))
+dataset_b_testing=tf.data.Dataset.from_tensor_slices((df_testing_b.values,labels_b_test))
+dataset_b=dataset_b.batch(32)
+dataset_b_valid=dataset_b_valid.batch(32)
+dataset_b_testing.batch(32)
+print(dataset_b)
+print(dataset_b_valid)
+print(dataset_b_testing)
+
+max_features = 10000
+#sequence of such length because the length of Twitter post is 280 symbols long
+sequence_length = 280
+
+
+train_text = dataset_b.map(lambda x, y: x)
+
+vectorize_layer.adapt(train_text)
+
+dataset_b_finished,dataset_b_valid_finished,dataset_b_testing_finished=map_and_optimize(dataset_b,dataset_b_valid,dataset_b_testing,vectorize_text)
+
+embedding_dim = 64
+model = tf.keras.Sequential([
+  layers.Embedding(max_features + 1, embedding_dim),
+  layers.Dropout(0.2),
+  layers.GlobalAveragePooling1D(),
+  layers.Dropout(0.2),
+  layers.Dense(1)
+  ])
+
+model.summary()
+
+model.compile(loss=losses.BinaryCrossentropy(from_logits=True,label_smoothing=0.15),
+              optimizer='adam',
+              metrics=tf.metrics.BinaryAccuracy(threshold=0.5))
+
+epochs = 100
+historyB = model.fit(
+    dataset_b_finished,
+    validation_data=dataset_b_valid_finished,
+    epochs=epochs)
+
+lossB, accuracyB = model.evaluate(dataset_b_finished)
+
+print("Loss: ", lossB)
+print("Accuracy: ", accuracyB)
+
+history_dictB = historyB.history
+history_dictB.keys()
+accB = history_dictB['binary_accuracy']
+val_accB = history_dictB['val_binary_accuracy']
+lossB = history_dictB['loss']
+val_lossB = history_dictB['val_loss']
+
+epochs = range(1, len(accB) + 1)
+
+# "ro" is for "red dot"
+plt.plot(epochs, lossB, 'ro', label='Training loss')
+# r is for "solid blue line"
+plt.plot(epochs, val_lossB, 'r', label='Validation loss')
+plt.title('Training and validation loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+
+plt.show()
+
+plt.plot(epochs, accB, 'ro', label='Training acc')
+plt.plot(epochs, val_accB, 'r', label='Validation acc')
+plt.title('Training and validation accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.legend(loc='lower right')
+
+plt.show()
+
+export_modelB = tf.keras.Sequential([
+  vectorize_layer,
+  model,
+  layers.Activation('sigmoid')
+])
+
+export_modelB.compile(
+    loss=losses.BinaryCrossentropy(from_logits=False), optimizer="adam", metrics=['accuracy']
+)
+
+examples = [
+  "You are a dumb retard, you are an asshole and you shoudl kill yourself, you are an idiot, you are a bigot",
+  " dumb retard, an asshole and should kill oneself , an idiot, a bigot",
+  "you are an IDIOT!",
+  "IDIOT!",
+  "You are the worst President in the hisotry of the US, I can't wait till you will be out of office. You are a nazi",
+  "The worst   in the hisotry of the US, I can't wait till  will be out of office.  are a nazi",
+  "You are like Hitler, dumb retarded nigger, KYS",
+  "I am like Hitler, dumb retarded nigger, KYS",
+  "He is like Hitler, dumb retarded nigger, KYS",
+  "She is like Hitler, dumb retarded nigger, KYS",
+  "Donald Trump is like Hitler, dumb retarded nigger, KYS",
+  "Donald Trump is the worst Presiden in the history of the US",
+  "Joe Biden is the worst Presiden in the history of the US",
+  "Vladimir Putin is the worst Presiden in the history of Russia",
+  "Donald Trump is the best President in the history of the US",
+  " people,  white males are racists,  OF THEM, EVERY.SINGLE.ONE, they are bigots and dumb "
+]
+loss, accuracy = export_model.evaluate(dataset_b_testing)
+print(accuracy)
+export_modelB.predict(examples)
 
